@@ -1,3 +1,7 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
 #include "../include/simulator.h"
 
 /* ******************************************************************
@@ -16,6 +20,27 @@
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
 
 /* called from layer 5, passed the data to be sent to other side */
+int win_size;
+
+int calculate_checksum(packet)
+struct pkt packet;
+{
+  int checksum = 0;
+  checksum += packet.seqnum;
+  checksum += packet.acknum;
+  for(int i = 0; i < sizeof(packet.payload) / sizeof(char); i++){
+    checksum += packet.payload[i];
+  }
+  return checksum;
+}
+
+int vaildiate_checksum(packet)
+struct pkt packet;
+{
+  int expectedChecksum = calculate_checksum(packet);
+  return (expectedChecksum == packet.checksum);
+}
+
 void A_output(message)
   struct msg message;
 {
@@ -43,7 +68,7 @@ void A_timerinterrupt()
 void A_init()
 {
   printf("run A_init\n");
-
+  win_size = getwinsize();
 }
 
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
