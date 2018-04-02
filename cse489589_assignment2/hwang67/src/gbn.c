@@ -20,10 +20,12 @@
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
 
 /* called from layer 5, passed the data to be sent to other side */
+#define TIMEOUT 15.0
 int base;
-int win_size;
-int seqnum;
-int acknum;
+int N;
+int nextseqnum;
+int nextacknum;
+struct pkt sndpkt[20];
 
 int calculate_checksum(packet)
 struct pkt packet;
@@ -47,35 +49,53 @@ struct pkt packet;
 void A_output(message)
   struct msg message;
 {
-  // printf("run A_output\n");
-  // printf("run A_output\n");
-  struct pkt sendingpkt;
+  printf("run A_output\n");
 
-  strncpy(sendingpkt.payload, message.data, 20);
-  sendingpkt.seqnum = seqnum;
-  sendingpkt.checksum = calculate_checksum(sendingpkt);
+  if(nextseqnum < base + N){
+    struct pkt sendingpkt;
 
-  tolayer3(0, sendingpkt);
-  starttimer(0, TIMEOUT);
-  seqnum += 1;
+    strncpy(sendingpkt.payload, message.data, 20);
+    sendingpkt.seqnum = nextseqnum;
+    sendingpkt.checksum = calculate_checksum(sendingpkt);
+
+    sndpkt[nextseqnum] = sendingpkt;
+    printf("A sending : %s, seq: %d\n", sndpkt[nextseqnum].payload, sndpkt[nextseqnum].seqnum);
+    tolayer3(0, sndpkt[nextseqnum]);
+
+    if (nextseqnum == base){
+      starttimer(0, TIMEOUT);
+    }
+    nextseqnum += 1;
+
+  }
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
 void A_input(packet)
   struct pkt packet;
 {
-  // printf("run A_input\n");
-  if (packet.acknum == seqnum - win_size){
-      seqnum += 1;
-      stoptimer(0);
+  printf("run A_input\n");
+  printf("A receving ack: %d, seqnum is: %d\n", packet.acknum, nextseqnum);
+
+  base = packet.acknum + 1;
+
+  if (base == nextseqnum){
+    stoptimer(0);
+  }else{
+    starttimer(0, TIMEOUT);
   }
 }
 
 /* called when A's timer goes off */
 void A_timerinterrupt()
 {
-  // printf("run A_timerinterrupt\n");
+  printf("run A_timerinterrupt\n");
+  starttimer(0, TIMEOUT);
 
+  for (int i = base; i < nextseqnum; i++){
+    tolayer3(0, sndpkt[i]);
+    printf("A resending : %s, seq: %d\n", sndpkt[i].payload, sndpkt[i].seqnum);
+  }
 }
 
 /* the following routine will be called once (only) before any other */
@@ -84,8 +104,9 @@ void A_init()
 {
   // printf("run A_init\n");
   base = 0;
-  win_size = getwinsize();
-  seqnum = 0;
+  N = getwinsize();
+  nextseqnum = 0;
+
 }
 
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
@@ -94,27 +115,29 @@ void A_init()
 void B_input(packet)
   struct pkt packet;
 {
-  // printf("run B_input\n");
-  //deplicate pkt
-  if (packet.seqnum != acknum){
-    memset(&packet.payload[0], 0, sizeof(packet.payload));
-    packet.acknum = acknum;
-    //send ack packet
-    tolayer3(1, packet);
-  }
+  struct pkt ackPkt;
+  printf("run B_input\n");
+  printf("B receving: %20s, seqnum: %d, current acknum: %d\n", packet.payload, packet.seqnum, nextacknum);
 
   //compare checksum
   int isCheckSumVaild = vaildiate_checksum(packet);
-  if (isCheckSumVaild){
-    // printf("run B_input\n");
-    //receving packet
-    tolayer5(1, packet.payload);
 
-    memset(&packet.payload[0], 0, sizeof(packet.payload));
-    packet.acknum = packet.seqnum;
-    //send ack packet
-    tolayer3(1, packet);
-    acknum += 1;
+  if (isCheckSumVaild){
+    //receving packet
+    //check if deplicate pkt
+    if (packet.seqnum == nextacknum){
+      tolayer5(1, packet.payload);
+      //send ack packet
+      ackPkt.acknum = packet.seqnum;
+      printf("B sending ack: %d\n", ackPkt.acknum);
+      tolayer3(1, ackPkt);
+      nextacknum += 1;
+    }else{
+      //duplicate packet
+      ackPkt.acknum = nextacknum - 1;
+      printf("B sending ack: %d\n", ackPkt.acknum);
+      tolayer3(1, ackPkt);
+    }
   }
 }
 
@@ -123,6 +146,5 @@ void B_input(packet)
 void B_init()
 {
   // printf("run B_init\n");
-  win_size = getwinsize();
-  acknum = 0;
+  nextacknum = 0;
 }

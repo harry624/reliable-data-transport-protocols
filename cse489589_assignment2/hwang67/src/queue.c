@@ -3,6 +3,14 @@
 #include <stdlib.h>
 #include <limits.h>
 
+#include "../include/queue.h"
+
+struct Queue
+{
+    int front, rear, size;
+    unsigned capacity;
+    struct pkt* array;
+};
 // function to create a queue of given capacity.
 // It initializes size of queue as 0
 struct Queue* createQueue(unsigned capacity)
@@ -37,7 +45,7 @@ void enqueue(struct Queue* queue, int item)
 
 // Function to remove an item from queue.
 // It changes front and size
-int dequeue(struct Queue* queue)
+struct pkt* dequeue(struct Queue* queue)
 {
     if (isEmpty(queue))
         return INT_MIN;
@@ -48,7 +56,7 @@ int dequeue(struct Queue* queue)
 }
 
 // Function to get front of queue
-int front(struct Queue* queue)
+struct pkt* front(struct Queue* queue)
 {
     if (isEmpty(queue))
         return INT_MIN;
@@ -56,7 +64,7 @@ int front(struct Queue* queue)
 }
 
 // Function to get rear of queue
-int rear(struct Queue* queue)
+struct pkt* rear(struct Queue* queue)
 {
     if (isEmpty(queue))
         return INT_MIN;

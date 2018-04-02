@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
+// #include "../include/queue.h"
 #include "../include/simulator.h"
 
 /* ******************************************************************
@@ -21,7 +21,8 @@
 /*0 (for A-side delivery) or 1 (for B-side delivery) */
 #define TIMEOUT 15.0
 char senBuf[512]; //buffer for application layer sending msg
-char revBuf[512]; //buffer for application layer receving msg
+struct Queue* queue;
+
 struct pkt tmpPkt;
 
 int seqnum;
@@ -67,8 +68,8 @@ void A_output(message)
   // tmpPkt.acknum = sendingpkt.acknum;
   tmpPkt.checksum = sendingpkt.checksum;
 
-  tolayer3(0, sendingpkt);
   starttimer(0, TIMEOUT);
+  tolayer3(0, sendingpkt);
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
@@ -79,7 +80,6 @@ void A_input(packet)
   printf("A receving ack: %d, seqnum is: %d\n", packet.acknum, seqnum);
 
   if (packet.acknum == seqnum){
-
     seqnum = packet.acknum == 0 ? 1: 0;
     stoptimer(0);
   }
@@ -91,9 +91,8 @@ void A_timerinterrupt()
   printf("run A_timerinterrupt\n");
   printf("A resending : %s, seq: %d\n", tmpPkt.payload, tmpPkt.seqnum);
 
-  tolayer3(0, tmpPkt);
   starttimer(0, TIMEOUT);
-
+  tolayer3(0, tmpPkt);
 }
 
 /* the following routine will be called once (only) before any other */
@@ -103,7 +102,6 @@ void A_init()
   printf("run A_init\n");
   // memest(&tmp,0 ,sizeof(struct pkt));
   seqnum = 0;
-  // acknum = 0;
 }
 
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
@@ -135,7 +133,6 @@ void B_input(packet)
       tolayer3(1, ackPkt);
       // acknum = acknum == 0 ? 1 : 0;
     }
-
   }
 }
 
@@ -143,6 +140,6 @@ void B_input(packet)
 /* entity B routines are called-> You can use it to do any initialization */
 void B_init()
 {
-  printf("run B_init\n");
+  // printf("run B_init\n");
   acknum = 0;
 }

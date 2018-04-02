@@ -1,9 +1,11 @@
+#include "../include/simulator.h"
+
 // A structure to represent a queue
 struct Queue
 {
     int front, rear, size;
     unsigned capacity;
-    char* array;
+    struct pkt* array;
 };
 
 // It initializes size of queue as 0
@@ -17,14 +19,14 @@ int isEmpty(struct Queue* queue);
 
 // Function to add an item to the queue.
 // It changes rear and size
-void enqueue(struct Queue* queue, int item);
+void enqueue(struct Queue* queue, struct pkt *item);
 
 // Function to remove an item from queue.
 // It changes front and size
-int dequeue(struct Queue* queue);
+struct pkt* dequeue(struct Queue* queue);
 
 // Function to get front of queue
-int front(struct Queue* queue);
+struct pkt* front(struct Queue* queue);
 
 // Function to get rear of queue
-int rear(struct Queue* queue);
+struct pkt* rear(struct Queue* queue);
