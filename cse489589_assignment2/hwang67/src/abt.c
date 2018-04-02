@@ -20,9 +20,9 @@
 /********* STUDENTS WRITE THE NEXT SIX ROUTINES *********/
 /*0 (for A-side delivery) or 1 (for B-side delivery) */
 #define TIMEOUT 15.0
-char senBuf[512]; //buffer for application layer sending msg
-struct Queue* queue;
-
+struct pkt sendBuf[1000]; //buffer for application layer sending msg
+int pktsBufcnt;
+int nextPktInd;
 struct pkt tmpPkt;
 
 int seqnum;
@@ -59,17 +59,17 @@ void A_output(message)
   strncpy(sendingpkt.payload, message.data, 20);
   sendingpkt.seqnum = seqnum;
   sendingpkt.checksum = calculate_checksum(sendingpkt);
-  printf("A sending : %s, seq: %d\n", sendingpkt.payload, sendingpkt.seqnum);
 
-  //save the sending pkt to tmp incase need to retransmission
-  // tmpPkt = &sendingpkt;
-  strncpy(tmpPkt.payload, sendingpkt.payload, 20);
-  tmpPkt.seqnum = sendingpkt.seqnum;
-  // tmpPkt.acknum = sendingpkt.acknum;
-  tmpPkt.checksum = sendingpkt.checksum;
+  seqnum = sendingpkt.seqnum == 0 ? 1: 0;
 
-  starttimer(0, TIMEOUT);
-  tolayer3(0, sendingpkt);
+  pktsBufcnt++;
+  sendBuf[pktsBufcnt] = sendingpkt;
+
+  // if(pktsBufcnt == nextPktInd){
+    starttimer(0, TIMEOUT);
+    tolayer3(0, sendBuf[nextPktInd]);
+    printf("A sending : %s, seq: %d\n", sendingpkt.payload, sendingpkt.seqnum);
+  // }
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
@@ -79,8 +79,8 @@ void A_input(packet)
   printf("run A_input\n");
   printf("A receving ack: %d, seqnum is: %d\n", packet.acknum, seqnum);
 
-  if (packet.acknum == seqnum){
-    seqnum = packet.acknum == 0 ? 1: 0;
+  if (packet.acknum == sendBuf[nextPktInd].seqnum){
+    nextPktInd++;
     stoptimer(0);
   }
 }
@@ -89,10 +89,11 @@ void A_input(packet)
 void A_timerinterrupt()
 {
   printf("run A_timerinterrupt\n");
-  printf("A resending : %s, seq: %d\n", tmpPkt.payload, tmpPkt.seqnum);
+
+  printf("A resending : %s, seq: %d\n", sendBuf[nextPktInd].payload, sendBuf[nextPktInd].seqnum);
 
   starttimer(0, TIMEOUT);
-  tolayer3(0, tmpPkt);
+  tolayer3(0, sendBuf[nextPktInd]);
 }
 
 /* the following routine will be called once (only) before any other */
@@ -102,6 +103,8 @@ void A_init()
   printf("run A_init\n");
   // memest(&tmp,0 ,sizeof(struct pkt));
   seqnum = 0;
+  pktsBufcnt = -1;
+  nextPktInd = 0 ;
 }
 
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
