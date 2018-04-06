@@ -11,7 +11,7 @@
    protocols (from A to B). Network properties:
    - one way network delay averages five time units (longer if there
      are other messages in the channel for GBN), but can be larger
-- packets can be corrupted (either the header or the data portion)
+   - packets can be corrupted (either the header or the data portion)
      or lost, according to user-defined probabilities
    - packets will be delivered in the order in which they were sent
      (although some can be lost).
@@ -19,7 +19,7 @@
 
 /********* STUDENTS WRITE THE NEXT SIX ROUTINES *********/
 /*0 (for A-side delivery) or 1 (for B-side delivery) */
-#define TIMEOUT 15.0
+#define TIMEOUT 20.0
 struct pkt sendBuf[1000]; //buffer for application layer sending msg
 int pktsBufcnt;
 int nextPktInd;
@@ -34,10 +34,18 @@ struct pkt packet;
 {
   int checksum = 0;
   checksum += packet.seqnum;
-  // checksum += packet.acknum;
-  for(int i = 0; i < sizeof(packet.payload) / sizeof(char); i++){
+  checksum += packet.acknum;
+
+  int sizeOfArray = strlen(packet.payload);
+
+  for(int i = 0; i < 20; i++){
     checksum += packet.payload[i];
   }
+  //Perform bitwise inversion
+  // checksum = ~checksum;
+
+  // //Increment
+  // checksum++;
   return checksum;
 }
 
@@ -45,6 +53,7 @@ int vaildiate_checksum(packet)
 struct pkt packet;
 {
   int expectedChecksum = calculate_checksum(packet);
+  printf("expectedChecksum:%d, packetchecksum: %d\n", expectedChecksum, packet.checksum);
   return (expectedChecksum == packet.checksum);
 }
 
@@ -62,14 +71,20 @@ void A_output(message)
 
   seqnum = sendingpkt.seqnum == 0 ? 1: 0;
 
+  //send the packet
   pktsBufcnt++;
   sendBuf[pktsBufcnt] = sendingpkt;
+  printf("A is sending : %20s, seq: %d, nextindex: %d\n",
+          sendBuf[pktsBufcnt].payload, sendBuf[pktsBufcnt].seqnum, nextPktInd);
 
-  // if(pktsBufcnt == nextPktInd){
-    starttimer(0, TIMEOUT);
-    tolayer3(0, sendBuf[nextPktInd]);
-    printf("A sending : %s, seq: %d\n", sendingpkt.payload, sendingpkt.seqnum);
-  // }
+  if(nextPktInd == pktsBufcnt){
+  tolayer3(0, sendBuf[nextPktInd]);
+  printf("A sent : %20s, seq: %d\n",
+          sendBuf[nextPktInd].payload, sendBuf[nextPktInd].seqnum);
+  starttimer(0, TIMEOUT);
+  }
+
+  printf("\n");
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
@@ -77,23 +92,31 @@ void A_input(packet)
   struct pkt packet;
 {
   printf("run A_input\n");
-  printf("A receving ack: %d, seqnum is: %d\n", packet.acknum, seqnum);
+  printf("A receving ack: %d, nextseqnum: %d, bufcnt: %d\n", packet.acknum, nextPktInd, pktsBufcnt);
 
   if (packet.acknum == sendBuf[nextPktInd].seqnum){
     nextPktInd++;
     stoptimer(0);
+
+    if (nextPktInd <= pktsBufcnt){
+      tolayer3(0, sendBuf[nextPktInd]);
+      starttimer(0, TIMEOUT);
+    }
   }
+  printf("\n");
+
 }
 
 /* called when A's timer goes off */
 void A_timerinterrupt()
 {
   printf("run A_timerinterrupt\n");
-
-  printf("A resending : %s, seq: %d\n", sendBuf[nextPktInd].payload, sendBuf[nextPktInd].seqnum);
-
-  starttimer(0, TIMEOUT);
+  printf("A resending : %20s, seq: %d, nextindex: %d\n",
+          sendBuf[nextPktInd].payload, sendBuf[nextPktInd].seqnum, nextPktInd);
   tolayer3(0, sendBuf[nextPktInd]);
+  starttimer(0, TIMEOUT);
+  printf("\n");
+
 }
 
 /* the following routine will be called once (only) before any other */
@@ -137,6 +160,8 @@ void B_input(packet)
       // acknum = acknum == 0 ? 1 : 0;
     }
   }
+  printf("\n");
+
 }
 
 /* the following routine will be called once (only) before any other */

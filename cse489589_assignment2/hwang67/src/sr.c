@@ -5,7 +5,7 @@
 #include "../include/simulator.h"
 
 /* ******************************************************************
- ALTERNATING BIT AND GO-BACK-N NETWORK EMULATOR: VERSION 1.1  J.F.Kurose
+ ALTERNATING8BIT AND GO-BACK-N NETWORK EMULATOR: VERSION 1.1  J.F.Kurose
 
    This code should be used for PA2, unidirectional data transfer
    protocols (from A to B). Network properties:
@@ -16,6 +16,15 @@
    - packets will be delivered in the order in which they were sent
      (although some can be lost).
 **********************************************************************/
+#define TIMEOUT 20.0
+int base;
+int N;
+int nextseqnum;
+int nextacknum;
+struct pkt sndPkt[1000];
+struct pkt recvBufPkt[1000];
+int sentPkt[1000];
+int recvdPkt[1000];
 
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
 int calculate_checksum(packet)
@@ -24,9 +33,16 @@ struct pkt packet;
   int checksum = 0;
   checksum += packet.seqnum;
   checksum += packet.acknum;
-  for(int i = 0; i < sizeof(packet.payload) / sizeof(char); i++){
+
+  int sizeOfArray = strlen(packet.payload);
+
+  for(int i = 0; i < 20; i++){
     checksum += packet.payload[i];
   }
+  //Perform bitwise inversion
+  // checksum=~checksum;
+  //Increment
+  // checksum++;
   return checksum;
 }
 
@@ -43,24 +59,30 @@ void A_output(message)
   struct msg message;
 {
   printf("run A_output\n");
+  struct pkt sendingpkt;
+
+  strncpy(sendingpkt.payload, message.data, 20);
+  sendingpkt.seqnum = nextseqnum;
+  sendingpkt.checksum = calculate_checksum(sendingpkt);
+
+  sndPkt[nextseqnum] = sendingpkt;
+
+  printf("A sending: %s, seq: %d, base: %d\n",
+          sndPkt[nextseqnum].payload, sndPkt[nextseqnum].seqnum, base);
 
   if(nextseqnum < base + N){
-    struct pkt sendingpkt;
 
-    strncpy(sendingpkt.payload, message.data, 20);
-    sendingpkt.seqnum = nextseqnum;
-    sendingpkt.checksum = calculate_checksum(sendingpkt);
-
-    sndpkt[nextseqnum] = sendingpkt;
-    printf("A sending : %s, seq: %d\n", sndpkt[nextseqnum].payload, sndpkt[nextseqnum].seqnum);
-    tolayer3(0, sndpkt[nextseqnum]);
+    tolayer3(0, sndPkt[nextseqnum]);
 
     if (nextseqnum == base){
       starttimer(0, TIMEOUT);
+      printf("start timer\n" );
+      // printf("cur time:%d\n", get_sim_time());
     }
-    nextseqnum += 1;
-
   }
+  nextseqnum += 1;
+  printf("\n");
+
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
@@ -70,13 +92,24 @@ void A_input(packet)
   printf("run A_input\n");
   printf("A receving ack: %d, seqnum is: %d\n", packet.acknum, nextseqnum);
 
-  base = packet.acknum + 1;
-
-  if (base == nextseqnum){
-    stoptimer(0);
-  }else{
-    starttimer(0, TIMEOUT);
+  if (packet.acknum > nextseqnum){
+    return;
   }
+
+  sentPkt[packet.acknum] = 1;
+
+  if (base == packet.acknum){
+    stoptimer(0);
+    printf("cur time:%d\n", get_sim_time());
+    base +=1;
+    printf("stop timer\n");
+    for (int i = 0; i < nextseqnum; i++){
+      if (sentPkt[i] == 0){
+        starttimer(0, TIMEOUT);
+      }
+    }
+  }
+  printf("\n");
 
 }
 
@@ -85,12 +118,12 @@ void A_timerinterrupt()
 {
   printf("run A_timerinterrupt\n");
   starttimer(0, TIMEOUT);
+  printf("cur time:%d\n", get_sim_time());
 
-  for (int i = base; i < nextseqnum; i++){
-    tolayer3(0, sndpkt[i]);
-    printf("A resending : %s, seq: %d\n", sndpkt[i].payload, sndpkt[i].seqnum);
-  }
-}
+  tolayer3(0, sndPkt[base]);
+  printf("A resending: %s, seq: %d\n",  sndPkt[base].payload,  sndPkt[base].seqnum);
+  printf("\n");
+
 }
 
 /* the following routine will be called once (only) before any other */
@@ -98,6 +131,12 @@ void A_timerinterrupt()
 void A_init()
 {
   printf("run A_init\n");
+  base = 0;
+  N = getwinsize();
+  nextseqnum = 0;
+  for (int i = 0; i < N; i++){
+    sentPkt[i] = 0;
+  }
 
 }
 
@@ -117,13 +156,34 @@ void B_input(packet)
   if (isCheckSumVaild){
     //receving packet
     //check if deplicate pkt
+
+    /*if the packet seq is equal to nextacknum, check if there is buffer,
+    if have, send the buffer to upper layer, and send back the acknum to A,
+    if have no buffer, just send the packet to layer5
+    */
     if (packet.seqnum == nextacknum){
       tolayer5(1, packet.payload);
+      //check if there is buffer
+      for (int i = packet.seqnum - base; i < N; i++){
+          if (recvBufPkt[i].acknum != -1){
+            tolayer5(1, recvBufPkt[i].payload);
+            recvBufPkt[i].acknum = -1;
+            nextacknum += 1;
+          }
+      }
       //send ack packet
       ackPkt.acknum = packet.seqnum;
       printf("B sending ack: %d\n", ackPkt.acknum);
       tolayer3(1, ackPkt);
       nextacknum += 1;
+
+    }else if (packet.seqnum > nextacknum){
+      printf("B add buffer seq: %d\n", packet.seqnum);
+      recvBufPkt[packet.seqnum - base] = packet;
+
+      ackPkt.acknum = packet.seqnum;
+      printf("B sending ack: %d\n", ackPkt.acknum);
+      tolayer3(1, ackPkt);
     }else{
       //duplicate packet
       ackPkt.acknum = nextacknum - 1;
@@ -131,6 +191,8 @@ void B_input(packet)
       tolayer3(1, ackPkt);
     }
   }
+  printf("\n");
+
 }
 
 /* the following rouytine will be called once (only) before any other */
@@ -138,5 +200,11 @@ void B_input(packet)
 void B_init()
 {
   printf("run B_init\n");
+  for (int i = 0; i < N; i++){
+    recvBufPkt[i].acknum = -1;
+  }
 
+  for (int i = 0; i < 1000; i++){
+    recvdPkt[i] = 0;
+  }
 }
