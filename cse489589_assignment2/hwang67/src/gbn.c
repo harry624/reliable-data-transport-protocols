@@ -90,7 +90,7 @@ void A_input(packet)
   printf("A receving ack: %d, next seqnum is: %d\n", packet.acknum, nextseqnum);
 
   if (packet.acknum < nextseqnum){
-      base = packet.acknum + 1;
+    base = packet.acknum + 1;
   }
 
   if (base == nextseqnum){
@@ -110,10 +110,11 @@ void A_timerinterrupt()
   starttimer(0, TIMEOUT);
 
   // printf("%d\n", base + N);
-  for (int i = base; i < (base + N); i++){
-    if(sndpkt[i].seqnum != -1 && i <= 1000){
+  int max = (base + N) <= 1000 ? (base + N) : 1000;
+  for (int i = base; i < max; i++){
+    if(sndpkt[i].seqnum != -1){
       tolayer3(0, sndpkt[i]);
-      printf("A resending : %s, seq: %d, base: %d\n", sndpkt[i].payload, sndpkt[i].seqnum, base);
+      printf("A resending :%s, seq: %d, base: %d\n", sndpkt[i].payload, sndpkt[i].seqnum, base);
 
     }
   }
