@@ -19,12 +19,15 @@
 #define TIMEOUT 20.0
 int base;
 int N;
+
 int nextseqnum;
 int nextacknum;
+
 struct pkt sndPkt[1000];
 struct pkt recvBufPkt[1000];
-int sentPkt[1000];
-int recvdPkt[1000];
+
+//array to save the acknum of the pkt within the win_size
+float timeoutArray[1000];
 
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
 int calculate_checksum(packet)
@@ -39,10 +42,6 @@ struct pkt packet;
   for(int i = 0; i < 20; i++){
     checksum += packet.payload[i];
   }
-  //Perform bitwise inversion
-  // checksum=~checksum;
-  //Increment
-  // checksum++;
   return checksum;
 }
 
@@ -66,6 +65,9 @@ void A_output(message)
   sendingpkt.checksum = calculate_checksum(sendingpkt);
 
   sndPkt[nextseqnum] = sendingpkt;
+  timeoutArray[nextseqnum] = get_sim_time() + 20.0;
+  printf("timeout sim time for pkt:%d is :%f\n",
+            nextseqnum, timeoutArray[nextseqnum]);
 
   printf("A sending: %s, seq: %d, base: %d\n",
           sndPkt[nextseqnum].payload, sndPkt[nextseqnum].seqnum, base);
@@ -76,13 +78,13 @@ void A_output(message)
 
     if (nextseqnum == base){
       starttimer(0, TIMEOUT);
-      printf("start timer\n" );
+
+      printf("start timer for seq: %d\n", nextseqnum);
       // printf("cur time:%d\n", get_sim_time());
     }
   }
   nextseqnum += 1;
   printf("\n");
-
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
@@ -90,38 +92,45 @@ void A_input(packet)
   struct pkt packet;
 {
   printf("run A_input\n");
-  printf("A receving ack: %d, seqnum is: %d\n", packet.acknum, nextseqnum);
+  printf("sim time:%f\n", get_sim_time());
+
+  printf("A receving ack: %d, nextseqnum is: %d, base: %d\n",
+            packet.acknum, nextseqnum, base);
 
   if (packet.acknum > nextseqnum){
     return;
   }
 
-  sentPkt[packet.acknum] = 1;
+  timeoutArray[packet.acknum] = 0.0;
 
   if (base == packet.acknum){
     stoptimer(0);
-    printf("cur time:%d\n", get_sim_time());
-    base +=1;
-    printf("stop timer\n");
-    for (int i = 0; i < nextseqnum; i++){
-      if (sentPkt[i] == 0){
-        starttimer(0, TIMEOUT);
+    printf("stop timer for seq: %d\n", base);
+    base ++;
+
+    for (int i = base; i < nextseqnum; i++){
+      if (timeoutArray[i] > 0){
+        starttimer(0, timeoutArray[i] - get_sim_time());
+        break;
+      }else if(timeoutArray[i] == 0.0){
+        base = i + 1;
       }
     }
   }
   printf("\n");
-
 }
 
 /* called when A's timer goes off */
 void A_timerinterrupt()
 {
   printf("run A_timerinterrupt\n");
+  printf("sim time:%f\n", get_sim_time());
   starttimer(0, TIMEOUT);
-  printf("cur time:%d\n", get_sim_time());
+  printf("start timer for seq: %d\n", base);
 
   tolayer3(0, sndPkt[base]);
-  printf("A resending: %s, seq: %d\n",  sndPkt[base].payload,  sndPkt[base].seqnum);
+  printf("A resending: %s, seq: %d\n",
+          sndPkt[base].payload,  sndPkt[base].seqnum);
   printf("\n");
 
 }
@@ -134,8 +143,9 @@ void A_init()
   base = 0;
   N = getwinsize();
   nextseqnum = 0;
-  for (int i = 0; i < N; i++){
-    sentPkt[i] = 0;
+  printf("sim time:%f\n", get_sim_time());
+  for (int i = 0; i < 1000; i++){
+    timeoutArray[i] = -1.0;
   }
 
 }
@@ -148,7 +158,8 @@ void B_input(packet)
 {
   struct pkt ackPkt;
   printf("run B_input\n");
-  printf("B receving: %20s, seqnum: %d, current acknum: %d\n", packet.payload, packet.seqnum, nextacknum);
+  printf("B receving: %s, seqnum: %d, current acknum: %d\n",
+            packet.payload, packet.seqnum, nextacknum);
 
   //compare checksum
   int isCheckSumVaild = vaildiate_checksum(packet);
@@ -163,11 +174,15 @@ void B_input(packet)
     */
     if (packet.seqnum == nextacknum){
       tolayer5(1, packet.payload);
+      printf("sending :%d to layer5: %s\n", packet.seqnum,  packet.payload);
       //check if there is buffer
-      for (int i = packet.seqnum - base; i < N; i++){
-          if (recvBufPkt[i].acknum != -1){
+      for (int i = packet.seqnum + 1; i < packet.seqnum + N && i < 1000; i++){
+          if (recvBufPkt[i].acknum < 0){
+            break;
+          }
+          if (recvBufPkt[i].acknum >= 0){
+            printf("sending :%d to layer5: %s\n",i,  recvBufPkt[i].payload);
             tolayer5(1, recvBufPkt[i].payload);
-            recvBufPkt[i].acknum = -1;
             nextacknum += 1;
           }
       }
@@ -179,14 +194,14 @@ void B_input(packet)
 
     }else if (packet.seqnum > nextacknum){
       printf("B add buffer seq: %d\n", packet.seqnum);
-      recvBufPkt[packet.seqnum - base] = packet;
+      recvBufPkt[packet.seqnum] = packet;
 
       ackPkt.acknum = packet.seqnum;
       printf("B sending ack: %d\n", ackPkt.acknum);
       tolayer3(1, ackPkt);
     }else{
       //duplicate packet
-      ackPkt.acknum = nextacknum - 1;
+      ackPkt.acknum = packet.seqnum;
       printf("B sending ack: %d\n", ackPkt.acknum);
       tolayer3(1, ackPkt);
     }
@@ -200,11 +215,8 @@ void B_input(packet)
 void B_init()
 {
   printf("run B_init\n");
-  for (int i = 0; i < N; i++){
+  for (int i = 0; i < 1000; i++){
     recvBufPkt[i].acknum = -1;
   }
 
-  for (int i = 0; i < 1000; i++){
-    recvdPkt[i] = 0;
-  }
 }
