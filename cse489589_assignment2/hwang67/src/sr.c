@@ -17,16 +17,18 @@
      (although some can be lost).
 **********************************************************************/
 #define TIMEOUT 20.0
+//the base of the window
 int base;
+//the size of the window
 int N;
 
 int nextseqnum;
 int nextacknum;
-
+//the sending packet array on the A(sender) side
 struct pkt sndPkt[1000];
+//the receving buffer array on the B(receiver) side
 struct pkt recvBufPkt[1000];
-
-//array to save the acknum of the pkt within the win_size
+//array to save the timeout times based on the sim_time()
 float timeoutArray[1000];
 
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
@@ -57,7 +59,7 @@ struct pkt packet;
 void A_output(message)
   struct msg message;
 {
-  printf("run A_output\n");
+  // printf("run A_output\n");
   struct pkt sendingpkt;
 
   strncpy(sendingpkt.payload, message.data, 20);
@@ -66,11 +68,11 @@ void A_output(message)
 
   sndPkt[nextseqnum] = sendingpkt;
   timeoutArray[nextseqnum] = get_sim_time() + 20.0;
-  printf("timeout sim time for pkt:%d is :%f\n",
-            nextseqnum, timeoutArray[nextseqnum]);
-
-  printf("A sending: %s, seq: %d, base: %d\n",
-          sndPkt[nextseqnum].payload, sndPkt[nextseqnum].seqnum, base);
+  // printf("timeout sim time for pkt:%d is :%f\n",
+  //           nextseqnum, timeoutArray[nextseqnum]);
+  //
+  // printf("A sending: %s, seq: %d, base: %d\n",
+  //         sndPkt[nextseqnum].payload, sndPkt[nextseqnum].seqnum, base);
 
   if(nextseqnum < base + N){
 
@@ -79,23 +81,23 @@ void A_output(message)
     if (nextseqnum == base){
       starttimer(0, TIMEOUT);
 
-      printf("start timer for seq: %d\n", nextseqnum);
+      // printf("start timer for seq: %d\n", nextseqnum);
       // printf("cur time:%d\n", get_sim_time());
     }
   }
   nextseqnum += 1;
-  printf("\n");
+  //printf("\n");
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
 void A_input(packet)
   struct pkt packet;
 {
-  printf("run A_input\n");
-  printf("sim time:%f\n", get_sim_time());
-
-  printf("A receving ack: %d, nextseqnum is: %d, base: %d\n",
-            packet.acknum, nextseqnum, base);
+  // printf("run A_input\n");
+  // printf("sim time:%f\n", get_sim_time());
+  //
+  // printf("A receving ack: %d, nextseqnum is: %d, base: %d\n",
+  //           packet.acknum, nextseqnum, base);
 
   if (packet.acknum > nextseqnum){
     return;
@@ -105,7 +107,7 @@ void A_input(packet)
 
   if (base == packet.acknum){
     stoptimer(0);
-    printf("stop timer for seq: %d\n", base);
+    // printf("stop timer for seq: %d\n", base);
     base ++;
 
     for (int i = base; i < nextseqnum; i++){
@@ -117,21 +119,21 @@ void A_input(packet)
       }
     }
   }
-  printf("\n");
+  //printf("\n");
 }
 
 /* called when A's timer goes off */
 void A_timerinterrupt()
 {
-  printf("run A_timerinterrupt\n");
-  printf("sim time:%f\n", get_sim_time());
+  // printf("run A_timerinterrupt\n");
+  // printf("sim time:%f\n", get_sim_time());
   starttimer(0, TIMEOUT);
-  printf("start timer for seq: %d\n", base);
+  // printf("start timer for seq: %d\n", base);
 
   tolayer3(0, sndPkt[base]);
-  printf("A resending: %s, seq: %d\n",
-          sndPkt[base].payload,  sndPkt[base].seqnum);
-  printf("\n");
+  // printf("A resending: %s, seq: %d\n",
+  //         sndPkt[base].payload,  sndPkt[base].seqnum);
+  //printf("\n");
 
 }
 
@@ -139,15 +141,15 @@ void A_timerinterrupt()
 /* entity A routines are called. You can use it to do any initialization */
 void A_init()
 {
-  printf("run A_init\n");
+  // printf("run A_init\n");
   base = 0;
   N = getwinsize();
   nextseqnum = 0;
-  printf("sim time:%f\n", get_sim_time());
+  // printf("sim time:%f\n", get_sim_time());
+
   for (int i = 0; i < 1000; i++){
     timeoutArray[i] = -1.0;
   }
-
 }
 
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
@@ -157,9 +159,9 @@ void B_input(packet)
   struct pkt packet;
 {
   struct pkt ackPkt;
-  printf("run B_input\n");
-  printf("B receving: %s, seqnum: %d, current acknum: %d\n",
-            packet.payload, packet.seqnum, nextacknum);
+  // printf("run B_input\n");
+  // printf("B receving: %s, seqnum: %d, current acknum: %d\n",
+  //           packet.payload, packet.seqnum, nextacknum);
 
   //compare checksum
   int isCheckSumVaild = vaildiate_checksum(packet);
@@ -174,39 +176,39 @@ void B_input(packet)
     */
     if (packet.seqnum == nextacknum){
       tolayer5(1, packet.payload);
-      printf("sending :%d to layer5: %s\n", packet.seqnum,  packet.payload);
+      // printf("sending :%d to layer5: %s\n", packet.seqnum,  packet.payload);
       //check if there is buffer
       for (int i = packet.seqnum + 1; i < packet.seqnum + N && i < 1000; i++){
           if (recvBufPkt[i].acknum < 0){
             break;
           }
           if (recvBufPkt[i].acknum >= 0){
-            printf("sending :%d to layer5: %s\n",i,  recvBufPkt[i].payload);
+            // printf("sending :%d to layer5: %s\n",i,  recvBufPkt[i].payload);
             tolayer5(1, recvBufPkt[i].payload);
             nextacknum += 1;
           }
       }
       //send ack packet
       ackPkt.acknum = packet.seqnum;
-      printf("B sending ack: %d\n", ackPkt.acknum);
+      // printf("B sending ack: %d\n", ackPkt.acknum);
       tolayer3(1, ackPkt);
       nextacknum += 1;
 
     }else if (packet.seqnum > nextacknum){
-      printf("B add buffer seq: %d\n", packet.seqnum);
+      // printf("B add buffer seq: %d\n", packet.seqnum);
       recvBufPkt[packet.seqnum] = packet;
 
       ackPkt.acknum = packet.seqnum;
-      printf("B sending ack: %d\n", ackPkt.acknum);
+      // printf("B sending ack: %d\n", ackPkt.acknum);
       tolayer3(1, ackPkt);
     }else{
       //duplicate packet
       ackPkt.acknum = packet.seqnum;
-      printf("B sending ack: %d\n", ackPkt.acknum);
+      // printf("B sending ack: %d\n", ackPkt.acknum);
       tolayer3(1, ackPkt);
     }
   }
-  printf("\n");
+  //printf("\n");
 
 }
 
@@ -214,7 +216,7 @@ void B_input(packet)
 /* entity B routines are called. You can use it to do any initialization */
 void B_init()
 {
-  printf("run B_init\n");
+  // printf("run B_init\n");
   for (int i = 0; i < 1000; i++){
     recvBufPkt[i].acknum = -1;
   }

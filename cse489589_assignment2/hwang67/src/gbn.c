@@ -56,7 +56,7 @@ struct pkt packet;
 void A_output(message)
   struct msg message;
 {
-  printf("run A_output\n");
+  // //printf("run A_output\n");
   struct pkt sendingpkt;
 
   strncpy(sendingpkt.payload, message.data, 20);
@@ -64,11 +64,11 @@ void A_output(message)
   sendingpkt.checksum = calculate_checksum(sendingpkt);
   sndpkt[nextseqnum] = sendingpkt;
 
-  printf("A is sending: %s, seq: %d, base: %d\n", sndpkt[nextseqnum].payload, sndpkt[nextseqnum].seqnum, base);
+  // //printf("A is sending: %s, seq: %d, base: %d\n", sndpkt[nextseqnum].payload, sndpkt[nextseqnum].seqnum, base);
 
   if(nextseqnum < base + N){
 
-    printf("A sent: %s, seq: %d, base: %d\n", sndpkt[nextseqnum].payload, sndpkt[nextseqnum].seqnum, base);
+    // //printf("A sent: %s, seq: %d, base: %d\n", sndpkt[nextseqnum].payload, sndpkt[nextseqnum].seqnum, base);
 
     tolayer3(0, sndpkt[nextseqnum]);
 
@@ -78,7 +78,7 @@ void A_output(message)
   }
   nextseqnum += 1;
 
-  printf("\n");
+  ////printf("\n");
 
 }
 
@@ -86,8 +86,8 @@ void A_output(message)
 void A_input(packet)
   struct pkt packet;
 {
-  printf("run A_input\n");
-  printf("A receving ack: %d, next seqnum is: %d\n", packet.acknum, nextseqnum);
+  // //printf("run A_input\n");
+  // //printf("A receving ack: %d, next seqnum is: %d\n", packet.acknum, nextseqnum);
 
   if (packet.acknum < nextseqnum){
     base = packet.acknum + 1;
@@ -99,26 +99,26 @@ void A_input(packet)
   // else{
   //   starttimer(0, TIMEOUT);
   // }
-  printf("\n");
+  ////printf("\n");
 
 }
 
 /* called when A's timer goes off */
 void A_timerinterrupt()
 {
-  printf("run A_timerinterrupt\n");
+  // //printf("run A_timerinterrupt\n");
   starttimer(0, TIMEOUT);
 
-  // printf("%d\n", base + N);
+  // //printf("%d\n", base + N);
   int max = (base + N) <= 1000 ? (base + N) : 1000;
   for (int i = base; i < max; i++){
     if(sndpkt[i].seqnum != -1){
       tolayer3(0, sndpkt[i]);
-      printf("A resending :%s, seq: %d, base: %d\n", sndpkt[i].payload, sndpkt[i].seqnum, base);
+      // //printf("A resending :%s, seq: %d, base: %d\n", sndpkt[i].payload, sndpkt[i].seqnum, base);
 
     }
   }
-  printf("\n");
+  ////printf("\n");
 
 }
 
@@ -126,7 +126,7 @@ void A_timerinterrupt()
 /* entity A routines are called. You can use it to do any initialization */
 void A_init()
 {
-  // printf("run A_init\n");
+  // //printf("run A_init\n");
   base = 0;
   N = getwinsize();
   nextseqnum = 0;
@@ -143,8 +143,8 @@ void B_input(packet)
   struct pkt packet;
 {
   struct pkt ackPkt;
-  printf("run B_input\n");
-  printf("B receving: %s, seqnum: %d, current acknum: %d\n", packet.payload, packet.seqnum, nextacknum);
+  //printf("run B_input\n");
+  //printf("B receving: %s, seqnum: %d, current acknum: %d\n", packet.payload, packet.seqnum, nextacknum);
 
   //compare checksum
   int isCheckSumVaild = vaildiate_checksum(packet);
@@ -156,17 +156,17 @@ void B_input(packet)
       tolayer5(1, packet.payload);
       //send ack packet
       ackPkt.acknum = packet.seqnum;
-      printf("B sending ack: %d\n", ackPkt.acknum);
+      //printf("B sending ack: %d\n", ackPkt.acknum);
       tolayer3(1, ackPkt);
       nextacknum += 1;
     }else{
       //duplicate packet
       ackPkt.acknum = nextacknum - 1;
-      printf("B sending ack: %d, packet discard\n", ackPkt.acknum);
+      // //printf("B sending ack: %d, packet discard\n", ackPkt.acknum);
       tolayer3(1, ackPkt);
     }
   }
-  printf("\n");
+  ////printf("\n");
 
 }
 
@@ -174,6 +174,6 @@ void B_input(packet)
 /* entity B routines are called. You can use it to do any initialization */
 void B_init()
 {
-  // printf("run B_init\n");
+  // //printf("run B_init\n");
   nextacknum = 0;
 }
